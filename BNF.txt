@@ -1,0 +1,31 @@
+<wine_factory> ::= <process_list>
+
+<process_list> ::= <process> | <process> ";" <process_list>
+
+<process> ::= <harvest> | <ferment> | <age> | <bottle> | <sell>
+
+<harvest> ::= "harvest" "(" <grape_type> "," <quantity> ")"
+
+<ferment> ::= "ferment" "(" <grape_type> "," <duration> ")"
+
+<age> ::= "age" "(" <wine_type> "," <duration> "," <barrel_type> ")"
+
+<bottle> ::= "bottle" "(" <wine_type> "," <quantity> ")"
+
+<sell> ::= "sell" "(" <wine_type> "," <quantity> "," <price> ")"
+
+<grape_type> ::= "CabernetSauvignon" | "Merlot" | "PinotNoir" | "Chardonnay"
+
+<wine_type> ::= "RedWine" | "WhiteWine" | "RoseWine"
+
+<barrel_type> ::= "Oak" | "Steel" | "Clay"
+
+<quantity> ::= <number> <unit>
+
+<unit> ::= "kg" | "L" | "bottles"
+
+<duration> ::= <number> "days" | <number> "months"
+
+<number> ::= "0" | "1" | "2" | ... | "9"
+
+<price> ::= <number> "." <number>
