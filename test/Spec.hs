@@ -2,7 +2,6 @@
 import Test.Tasty ( TestTree, defaultMain, testGroup )
 import Test.Tasty.HUnit ( testCase, (@?=) )
 
-import Lib1 qualified
 import Lib2 qualified
 
 main :: IO ()
@@ -12,11 +11,24 @@ tests :: TestTree
 tests = testGroup "Tests" [unitTests]
 
 unitTests :: TestTree
-unitTests = testGroup "Lib1 tests"
-  [ testCase "List of completions is not empty" $
-      null Lib1.completions @?= False,
-    testCase "Parsing case 1 - give a better name" $
-      Lib2.parseQuery "" @?= (Left "Some error message"),
-    testCase "Parsing case 2 - give a better name" $
-      Lib2.parseQuery "o" @?= (Left "Some error message")
+unitTests = testGroup "Lib2 tests"
+  [ testCase "Harvest command parsing" $
+      Lib2.parseQuery "harvest (CabernetSauvignon, 100, kg)" @?= 
+        Right (Lib2.Harvest Lib2.CabernetSauvignon 100 Lib2.Kg),
+        
+    testCase "Ferment command parsing" $
+      Lib2.parseQuery "ferment (Merlot, 30 days)" @?= 
+        Right (Lib2.Ferment Lib2.Merlot (Lib2.Days 30)),
+        
+    testCase "Invalid command parsing" $
+      Lib2.parseQuery "invalid command" @?= Left "Unknown command",
+        
+    testCase "State transition with Harvest" $
+      let initialState = Lib2.emptyState
+      in case Lib2.parseQuery "harvest (CabernetSauvignon, 100, kg)" of
+        Right query ->
+            case Lib2.stateTransition initialState query of
+                Right (_, newState) -> Lib2.processes newState @?= [query]
+                Left err -> error err
+        Left err -> error err
   ]
