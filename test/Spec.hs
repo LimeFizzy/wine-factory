@@ -51,5 +51,63 @@ unitTests = testGroup "Lib2 tests"
       let initialState = Lib2.emptyState
       in case Lib2.stateTransition initialState Lib2.View of
           Right (Just stateView, _) -> stateView @?= show initialState
-          Left err -> error err
+          Left err -> error err,
+
+    testCase "State transition with Bottle when there are enough grapes" $
+      let initialState = Lib2.emptyState { Lib2.grapeInventory = [(Lib2.CabernetSauvignon, 100)] }
+      in case Lib2.parseQuery "bottle (RedWine, 50, bottles)" of
+        Right query ->
+          case Lib2.stateTransition initialState query of
+            Right (_, newState) -> 
+              Lib2.wineInventory newState @?= [(Lib2.RedWine, 50)]
+            Left err -> error err
+        Left err -> error err,
+
+    testCase "State transition with Age" $
+      let initialState = Lib2.emptyState
+      in case Lib2.parseQuery "age (RedWine, 6 months, Oak)" of
+        Right query ->
+          case Lib2.stateTransition initialState query of
+            Right (_, newState) ->
+              Lib2.processes newState @?= [query]
+            Left err -> error err
+        Left err -> error err,
+
+    testCase "State transition with Sell when there is enough wine" $
+      let initialState = Lib2.emptyState { Lib2.wineInventory = [(Lib2.RedWine, 100)] }
+      in case Lib2.parseQuery "sell (RedWine, 50, 25.99)" of
+        Right query ->
+          case Lib2.stateTransition initialState query of
+            Right (_, newState) ->
+              Lib2.wineInventory newState @?= [(Lib2.RedWine, 50)]
+            Left err -> error err
+        Left err -> error err,
+
+    testCase "State transition with Sell when there is not enough wine" $
+      let initialState = Lib2.emptyState { Lib2.wineInventory = [(Lib2.RedWine, 10)] }
+      in case Lib2.parseQuery "sell (RedWine, 50, 25.99)" of
+        Right query ->
+          case Lib2.stateTransition initialState query of
+            Left err -> err @?= "Not enough wine to sell"
+            Right _ -> error "Expected error for insufficient wine"
+        Left err -> error err,
+
+    testCase "State transition with Ferment when there are enough grapes" $
+      let initialState = Lib2.emptyState { Lib2.grapeInventory = [(Lib2.Merlot, 50)] }
+      in case Lib2.parseQuery "ferment (Merlot, 30 days)" of
+        Right query ->
+          case Lib2.stateTransition initialState query of
+            Right (_, newState) ->
+              Lib2.processes newState @?= [query]
+            Left err -> error err
+        Left err -> error err,
+
+    testCase "State transition with Ferment when there are not enough grapes" $
+      let initialState = Lib2.emptyState { Lib2.grapeInventory = [(Lib2.Merlot, 0)] }
+      in case Lib2.parseQuery "ferment (Merlot, 30 days)" of
+        Right query ->
+          case Lib2.stateTransition initialState query of
+            Left err -> err @?= "Not enough grapes to ferment"
+            Right _ -> error "Expected error for insufficient grapes"
+        Left err -> error err
   ]

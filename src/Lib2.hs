@@ -135,10 +135,8 @@ emptyState =
     }
 
 -- | Transition the state with a new query.
-stateTransition :: State -> Either String Query -> Either String (Maybe String, State)
-stateTransition st eitherQuery = case eitherQuery of
-  Left err -> Left err
-  Right query -> case query of
+stateTransition :: State -> Query -> Either String (Maybe String, State)
+stateTransition st query = case query of
     View -> Right (Just (show st), st)
     Harvest grapeType quantity unit ->
       if unit == Kg
