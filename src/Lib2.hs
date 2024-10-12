@@ -1,10 +1,13 @@
 {-# LANGUAGE InstanceSigs #-}
+{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
+
+{-# HLINT ignore "Redundant lambda" #-}
 
 module Lib2
   ( Query (..),
     GrapeType (..),
     WineType (..),
-    Unit (..),
+    Quantity (..),
     BarrelType (..),
     Duration (..),
     parseQuery,
@@ -14,15 +17,15 @@ module Lib2
   )
 where
 
-import Text.Read (readMaybe)
+import Data.Char (isDigit)
 
 -- | Data types for Queries and State
 data Query
-  = Harvest GrapeType Int Unit
+  = Harvest GrapeType Quantity
   | Ferment GrapeType Duration
   | Age WineType Duration BarrelType
-  | Bottle WineType Int Unit
-  | Sell WineType Int Double
+  | Bottle WineType Quantity
+  | Sell WineType Quantity Double
   | View
   deriving (Eq, Show)
 
@@ -32,7 +35,7 @@ data GrapeType = CabernetSauvignon | Merlot | PinotNoir | Chardonnay
 data WineType = RedWine | WhiteWine | RoseWine
   deriving (Eq, Show)
 
-data Unit = Kg | L | Bottles
+data Quantity = Kg Int | L Int | Bottles Int
   deriving (Eq, Show)
 
 data BarrelType = Oak | Steel | Clay
@@ -42,134 +45,342 @@ data Duration = Days Int | Months Int
   deriving (Eq, Show)
 
 data State = State
-  { processes :: [Query],
-    grapeInventory :: [(GrapeType, Int)], -- Tracks harvested grapes in kg.
-    wineInventory :: [(WineType, Int)], -- Tracks bottled wine in quantity.
-    barrels :: [(BarrelType, Int)] -- Tracks barrels in use.
+  { grapeInventory :: [(GrapeType, Int)], -- Tracks harvested grapes in kg.
+    wineInventory :: [(WineType, Int)] -- Tracks bottled wine in quantity.
   }
   deriving (Eq, Show)
 
+type Parser a = String -> Either String (a, String)
+
+and3' ::
+  (a -> b -> c -> d) ->
+  Parser a ->
+  Parser b ->
+  Parser c ->
+  Parser d
+and3' comb p1 p2 p3 = \input ->
+  case p1 input of
+    Right (v1, r1) ->
+      case p2 r1 of
+        Right (v2, r2) ->
+          case p3 r2 of
+            Right (v3, r3) -> Right (comb v1 v2 v3, r3)
+            Left e3 -> Left e3
+        Left e2 -> Left e2
+    Left e1 -> Left e1
+
+and6' :: (a -> b -> c -> d -> e -> f -> g) -> Parser a -> Parser b -> Parser c -> Parser d -> Parser e -> Parser f -> Parser g
+and6' comb p1 p2 p3 p4 p5 p6 = \input ->
+  case p1 input of
+    Right (v1, r1) ->
+      case p2 r1 of
+        Right (v2, r2) ->
+          case p3 r2 of
+            Right (v3, r3) ->
+              case p4 r3 of
+                Right (v4, r4) ->
+                  case p5 r4 of
+                    Right (v5, r5) ->
+                      case p6 r5 of
+                        Right (v6, r6) -> Right (comb v1 v2 v3 v4 v5 v6, r6)
+                        Left e6 -> Left e6
+                    Left e5 -> Left e5
+                Left e4 -> Left e4
+            Left e3 -> Left e3
+        Left e2 -> Left e2
+    Left e1 -> Left e1
+
+and8' ::
+  (a -> b -> c -> d -> e -> f -> g -> h -> i) ->
+  Parser a ->
+  Parser b ->
+  Parser c ->
+  Parser d ->
+  Parser e ->
+  Parser f ->
+  Parser g ->
+  Parser h ->
+  Parser i
+and8' comb p1 p2 p3 p4 p5 p6 p7 p8 = \input ->
+  case p1 input of
+    Right (v1, r1) ->
+      case p2 r1 of
+        Right (v2, r2) ->
+          case p3 r2 of
+            Right (v3, r3) ->
+              case p4 r3 of
+                Right (v4, r4) ->
+                  case p5 r4 of
+                    Right (v5, r5) ->
+                      case p6 r5 of
+                        Right (v6, r6) ->
+                          case p7 r6 of
+                            Right (v7, r7) ->
+                              case p8 r7 of
+                                Right (v8, r8) ->
+                                  Right (comb v1 v2 v3 v4 v5 v6 v7 v8, r8)
+                                Left e8 -> Left e8
+                            Left e7 -> Left e7
+                        Left e6 -> Left e6
+                    Left e5 -> Left e5
+                Left e4 -> Left e4
+            Left e3 -> Left e3
+        Left e2 -> Left e2
+    Left e1 -> Left e1
+
+or6' :: Parser a -> Parser a -> Parser a -> Parser a -> Parser a -> Parser a -> Parser a
+or6' p1 p2 p3 p4 p5 p6 = \input ->
+  case p1 input of
+    Right r1 -> Right r1
+    Left e1 -> case p2 input of
+      Right r2 -> Right r2
+      Left e2 -> case p3 input of
+        Right r3 -> Right r3
+        Left e3 -> case p4 input of
+          Right r4 -> Right r4
+          Left e4 -> case p5 input of
+            Right r5 -> Right r5
+            Left e5 -> case p6 input of
+              Right r6 -> Right r6
+              Left e6 -> Left (e1 ++ "; " ++ e2 ++ "; " ++ e3 ++ "; " ++ e4 ++ "; " ++ e5 ++ "; " ++ e6)
+
+skipSpaces :: String -> String
+skipSpaces = dropWhile (== ' ')
+
+parseChar :: Char -> Parser Char
+parseChar _ [] = Left "Unexpected end of input"
+parseChar c input =
+  let input' = skipSpaces input
+   in if null input'
+        then Left "Unexpected end of input"
+        else
+          if head input' == c
+            then Right (c, tail input')
+            else Left $ "Expected '" ++ [c] ++ "', but found '" ++ [head input'] ++ "'"
+
+parseLiteral :: String -> Parser String
+parseLiteral [] input = Right ([], input)
+parseLiteral (x : xs) input =
+  let input' = skipSpaces input
+   in if null input'
+        then Left "Unexpected end of input"
+        else
+          if head input' == x
+            then case parseLiteral xs (tail input') of
+              Right (str, rest) -> Right (x : str, rest)
+              Left err -> Left err
+            else Left $ "Expected \"" ++ (x : xs) ++ "\", but found \"" ++ take (length (x : xs)) input' ++ "\""
+
+parseString :: Parser String
+parseString input =
+  let input' = skipSpaces input
+   in if null input'
+        then Right ("", "")
+        else
+          if head input' == '"'
+            then parseQuotedString (tail input')
+            else
+              let (str, rest) = span (\c -> c /= ' ' && c /= ',' && c /= '(' && c /= ')') input'
+               in Right (str, rest)
+  where
+    parseQuotedString [] = Left "Unexpected end of input in quoted string"
+    parseQuotedString ('"' : rest) = Right ("", rest)
+    parseQuotedString (x : rest) = case parseQuotedString rest of
+      Right (str, rest') -> Right (x : str, rest')
+      Left err -> Left err
+
+parseInt :: Parser Int
+parseInt input =
+  let (digits, rest) = span isDigit (skipSpaces input)
+   in if null digits
+        then Left "Expected an integer"
+        else Right (read digits, rest)
+
+parseDouble :: Parser Double
+parseDouble input =
+  let (digits, rest) = span (\c -> isDigit c || c == '.') (skipSpaces input)
+   in if null digits
+        then Left "Expected a double"
+        else Right (read digits, rest)
+
 -- | Parse grape type
 -- <grape_type> ::= "CabernetSauvignon" | "Merlot" | "PinotNoir" | "Chardonnay"
-parseGrapeType :: String -> Maybe GrapeType
-parseGrapeType "CabernetSauvignon" = Just CabernetSauvignon
-parseGrapeType "Merlot" = Just Merlot
-parseGrapeType "PinotNoir" = Just PinotNoir
-parseGrapeType "Chardonnay" = Just Chardonnay
-parseGrapeType _ = Nothing
+parseGrapeType :: Parser GrapeType
+parseGrapeType input = case parseString (skipSpaces input) of
+  Right ("CabernetSauvignon", rest) -> Right (CabernetSauvignon, rest)
+  Right ("Merlot", rest) -> Right (Merlot, rest)
+  Right ("PinotNoir", rest) -> Right (PinotNoir, rest)
+  Right ("Chardonnay", rest) -> Right (Chardonnay, rest)
+  _ -> Left "Failed to parse grape type"
 
 -- | Parse wine type
 -- <wine_type> ::= "RedWine" | "WhiteWine" | "RoseWine"
-parseWineType :: String -> Maybe WineType
-parseWineType "RedWine" = Just RedWine
-parseWineType "WhiteWine" = Just WhiteWine
-parseWineType "RoseWine" = Just RoseWine
-parseWineType _ = Nothing
+parseWineType :: Parser WineType
+parseWineType input = case parseString (skipSpaces input) of
+  Right ("RedWine", rest) -> Right (RedWine, rest)
+  Right ("WhiteWine", rest) -> Right (WhiteWine, rest)
+  Right ("RoseWine", rest) -> Right (RoseWine, rest)
+  _ -> Left "Failed to parse wine type"
 
 -- | Parse unit
 -- <unit> ::= "kg" | "L" | "bottles"
-parseUnit :: String -> Maybe Unit
-parseUnit "kg" = Just Kg
-parseUnit "L" = Just L
-parseUnit "bottles" = Just Bottles
-parseUnit _ = Nothing
+parseQuantityUnit :: Parser (Int -> Quantity)
+parseQuantityUnit input = case parseString (skipSpaces input) of
+  Right ("kg", rest) -> Right (Kg, rest)
+  Right ("L", rest) -> Right (L, rest)
+  Right ("bottles", rest) -> Right (Bottles, rest)
+  _ -> Left "Failed to parse unit"
+
+parseQuantity :: Parser Quantity
+parseQuantity input = case parseInt input of
+  Right (num, rest) -> case parseQuantityUnit rest of
+    Right (unit, rest') -> Right (unit num, rest')
+    Left err -> Left err
+  Left err -> Left err
 
 -- | Parse barrel type
 -- <barrel_type> ::= "Oak" | "Steel" | "Clay"
-parseBarrelType :: String -> Maybe BarrelType
-parseBarrelType "Oak" = Just Oak
-parseBarrelType "Steel" = Just Steel
-parseBarrelType "Clay" = Just Clay
-parseBarrelType _ = Nothing
+parseBarrelType :: Parser BarrelType
+parseBarrelType input = case parseString (skipSpaces input) of
+  Right ("Oak", rest) -> Right (Oak, rest)
+  Right ("Steel", rest) -> Right (Steel, rest)
+  Right ("Clay", rest) -> Right (Clay, rest)
+  _ -> Left "Failed to parse barrel type"
+
+parseDurationUnit :: Parser (Int -> Duration)
+parseDurationUnit input = case parseString (skipSpaces input) of
+  Right ("days", rest) -> Right (Days, rest)
+  Right ("months", rest) -> Right (Months, rest)
+  _ -> Left "Failed to parse duration unit"
 
 -- | Parse duration
 -- <duration> ::= <number> "days" | <number> "months"
-parseDuration :: String -> Maybe Duration
-parseDuration s = case words s of
-  [n, "days"] -> Days <$> readMaybe n
-  [n, "months"] -> Months <$> readMaybe n
-  _ -> Nothing
+parseDuration :: Parser Duration
+parseDuration input = case parseInt input of
+  Right (num, rest) -> case parseDurationUnit rest of
+    Right (unit, rest') -> Right (unit num, rest')
+    Left err -> Left err
+  Left err -> Left err
+
+parseHarvest :: Parser Query
+parseHarvest =
+  and6'
+    (\_ _ gType _ quantity _ -> Harvest gType quantity)
+    (parseLiteral "harvest")
+    (parseChar '(')
+    parseGrapeType
+    (parseChar ',')
+    parseQuantity
+    (parseChar ')')
+
+parseFerment :: Parser Query
+parseFerment =
+  and6'
+    (\_ _ gtype _ duration _ -> Ferment gtype duration)
+    (parseLiteral "ferment")
+    (parseChar '(')
+    parseGrapeType
+    (parseChar ',')
+    parseDuration
+    (parseChar ')')
+
+parseBottle :: Parser Query
+parseBottle =
+  and6'
+    (\_ _ wType _ quantity _ -> Bottle wType quantity)
+    (parseLiteral "bottle")
+    (parseChar '(')
+    parseWineType
+    (parseChar ',')
+    parseQuantity
+    (parseChar ')')
+
+parseAge :: Parser Query
+parseAge =
+  and8'
+    (\_ _ wType _ duration _ bType _ -> Age wType duration bType)
+    (parseLiteral "age")
+    (parseChar '(')
+    parseWineType
+    (parseChar ',')
+    parseDuration
+    (parseChar ',')
+    parseBarrelType
+    (parseChar ')')
+
+parseSell :: Parser Query
+parseSell =
+  and8'
+    (\_ _ wType _ quantity _ price _ -> Sell wType quantity price)
+    (parseLiteral "sell")
+    (parseChar '(')
+    parseWineType
+    (parseChar ',')
+    parseQuantity
+    (parseChar ',')
+    parseDouble
+    (parseChar ')')
+
+-- | Parse view command
+parseView :: Parser Query
+parseView =
+  and3'
+    (\_ _ _ -> View)
+    (parseLiteral "view")
+    (parseChar '(')
+    (parseChar ')')
 
 -- | Parses user's input.
 parseQuery :: String -> Either String Query
-parseQuery input =
-  let sanitizedInput = words (map (\c -> (if (c == ',') || (c `elem` "()") then ' ' else c)) input)
-   in case sanitizedInput of
-        -- <harvest> ::= "harvest" "(" <grape_type> "," <quantity> ")"
-        ("harvest" : g : n : u : _) ->
-          case (parseGrapeType g, readMaybe n :: Maybe Int, parseUnit u) of
-            (Just grape, Just quantity, Just unit) -> Right (Harvest grape quantity unit)
-            _ -> Left "Failed to parse harvest"
-        -- <ferment> ::= "ferment" "(" <grape_type> "," <duration> ")"
-        ("ferment" : g : n : d : _) ->
-          case (parseGrapeType g, parseDuration (n ++ " " ++ d)) of
-            (Just grape, Just duration) -> Right (Ferment grape duration)
-            _ -> Left "Failed to parse ferment"
-        -- <age> ::= "age" "(" <wine_type> "," <duration> "," <barrel_type> ")"
-        ("age" : w : n : d : b : _) ->
-          case (parseWineType w, parseDuration (n ++ " " ++ d), parseBarrelType b) of
-            (Just wine, Just duration, Just barrel) -> Right (Age wine duration barrel)
-            _ -> Left "Failed to parse age"
-        -- <bottle> ::= "bottle" "(" <wine_type> "," <quantity> ")"
-        ("bottle" : w : n : u : _) ->
-          case (parseWineType w, readMaybe n :: Maybe Int, parseUnit u) of
-            (Just wine, Just quantity, Just unit) -> Right (Bottle wine quantity unit)
-            _ -> Left "Failed to parse bottle"
-        -- <sell> ::= "sell" "(" <wine_type> "," <quantity> "," <price> ")"
-        ("sell" : w : n : p : _) ->
-          case (parseWineType w, readMaybe n :: Maybe Int, readMaybe p :: Maybe Double) of
-            (Just wine, Just quantity, Just price) -> Right (Sell wine quantity price)
-            _ -> Left "Failed to parse sell"
-        -- <view> ::= "view"
-        ("view" : _) -> Right View
-        _ -> Left "Unknown command"
+parseQuery input = case or6' parseHarvest parseFerment parseBottle parseAge parseSell parseView input of
+  Right (query, _) -> Right query
+  Left err -> Left $ "Failed to parse query: " ++ err
 
 -- | Initial program state.
 emptyState :: State
 emptyState =
   State
-    { processes = [],
-      grapeInventory = [],
-      wineInventory = [],
-      barrels = []
+    { grapeInventory = [],
+      wineInventory = []
     }
 
 -- | Transition the state with a new query.
 stateTransition :: State -> Query -> Either String (Maybe String, State)
 stateTransition st query = case query of
-    View -> Right (Just (show st), st)
-    Harvest grapeType quantity unit ->
-      if unit == Kg
-        then
-          let updatedGrapeInventory = addToInventory grapeType quantity (grapeInventory st)
-              newState = st {processes = query : processes st, grapeInventory = updatedGrapeInventory}
-           in Right (Just ("Harvested " ++ show quantity ++ " kg of " ++ show grapeType), newState)
-        else Left "Harvesting must be in kg"
-    Bottle wineType quantity unit ->
-      if unit == Bottles
-        then
-          let updatedWineInventory = addToInventory wineType quantity (wineInventory st)
-              newState = st {processes = query : processes st, wineInventory = updatedWineInventory}
-           in Right (Just ("Bottled " ++ show quantity ++ " bottles of " ++ show wineType), newState)
-        else Left "Bottling must be in bottles"
-    Age wineType duration barrelType ->
-      let updatedBarrels = addToInventory barrelType 1 (barrels st)
-          newState = st {processes = query : processes st, barrels = updatedBarrels}
-       in Right (Just ("Aged " ++ show wineType ++ " for " ++ show duration ++ " in " ++ show barrelType ++ " barrel"), newState)
-    Sell wineType quantity price ->
-      let currentWineQuantity = lookupInventory wineType (wineInventory st)
-       in if currentWineQuantity >= quantity
-            then
-              let updatedWineInventory = removeFromInventory wineType quantity (wineInventory st)
-                  newState = st {processes = query : processes st, wineInventory = updatedWineInventory}
-               in Right (Just ("Sold " ++ show quantity ++ " bottles of " ++ show wineType ++ " for " ++ show price ++ " each"), newState)
-            else Left "Not enough wine to sell"
-    Ferment grapeType duration ->
-      let currentGrapes = lookupInventory grapeType (grapeInventory st)
-       in if currentGrapes > 0
-            then
-              Right (Just ("Fermented " ++ show grapeType ++ " for " ++ show duration), st {processes = query : processes st})
-            else Left "Not enough grapes to ferment"
+  Harvest grapeType quantity ->
+    let updatedInventory = addToInventory grapeType (getQuantity quantity) (grapeInventory st)
+        newState = st {grapeInventory = updatedInventory}
+     in Right (Just ("Harvested " ++ show (getQuantity quantity) ++ " kg of " ++ show grapeType), newState)
+  Ferment grapeType duration ->
+    Right (Just ("Started fermentation of " ++ show grapeType ++ " for " ++ show duration), st)
+  Age wineType duration barrelType ->
+    Right (Just ("Aging " ++ show wineType ++ " for " ++ show duration ++ " in " ++ show barrelType), st)
+  Bottle wineType quantity ->
+    let updatedInventory = addToInventory wineType (getBottleQuantity quantity) (wineInventory st)
+        newState = st {wineInventory = updatedInventory}
+     in Right (Just ("Bottled " ++ show (getBottleQuantity quantity) ++ " of " ++ show wineType), newState)
+  Sell wineType quantity price ->
+    if any (\(wType, qty) -> wType == wineType && qty >= getBottleQuantity quantity) (wineInventory st)
+      then
+        let newWineInventory = removeFromInventory wineType (getBottleQuantity quantity) (wineInventory st)
+            newState = st {wineInventory = newWineInventory}
+         in Right (Just ("Sold " ++ show (getBottleQuantity quantity) ++ " of " ++ show wineType ++ " for $" ++ show price), newState)
+      else Left "Insufficient inventory to sell the requested quantity"
+  View ->
+    let grapeList = unlines $ map (\(gType, qty) -> show qty ++ " kg of " ++ show gType) (grapeInventory st)
+        wineList = unlines $ map (\(wType, qty) -> show qty ++ " bottles of " ++ show wType) (wineInventory st)
+     in Right (Just ("Grape Inventory:\n" ++ grapeList ++ "\nWine Inventory:\n" ++ wineList), st)
+
+-- Helper function to get quantity from Quantity type
+getQuantity :: Quantity -> Int
+getQuantity (Kg q) = q
+getQuantity (L q) = q
+getQuantity (Bottles q) = q
+
+-- Helper function to get quantity from Bottles type
+getBottleQuantity :: Quantity -> Int
+getBottleQuantity (Bottles q) = q
+getBottleQuantity _ = 0 -- Assuming that only bottles are relevant for this function
 
 -- Helper function to add to inventory
 addToInventory :: (Eq a) => a -> Int -> [(a, Int)] -> [(a, Int)]
@@ -184,10 +395,3 @@ removeFromInventory _ _ [] = []
 removeFromInventory item quantity ((i, q) : xs)
   | i == item = if q > quantity then (i, q - quantity) : xs else xs
   | otherwise = (i, q) : removeFromInventory item quantity xs
-
--- Helper function to lookup inventory quantity
-lookupInventory :: (Eq a) => a -> [(a, Int)] -> Int
-lookupInventory _ [] = 0
-lookupInventory item ((i, q) : xs)
-  | i == item = q
-  | otherwise = lookupInventory item xs
