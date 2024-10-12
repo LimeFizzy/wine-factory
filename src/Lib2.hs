@@ -27,6 +27,7 @@ data Query
   | Bottle WineType Quantity
   | Sell WineType Quantity Double
   | View
+  | WineFactory [Query]
   deriving (Eq, Show)
 
 data GrapeType = CabernetSauvignon | Merlot | PinotNoir | Chardonnay
@@ -65,6 +66,21 @@ and3' comb p1 p2 p3 = \input ->
         Right (v2, r2) ->
           case p3 r2 of
             Right (v3, r3) -> Right (comb v1 v2 v3, r3)
+            Left e3 -> Left e3
+        Left e2 -> Left e2
+    Left e1 -> Left e1
+
+and4' :: (a -> b -> c -> d -> e) -> Parser a -> Parser b -> Parser c -> Parser d -> Parser e
+and4' comb p1 p2 p3 p4 = \input ->
+  case p1 input of
+    Right (v1, r1) ->
+      case p2 r1 of
+        Right (v2, r2) ->
+          case p3 r2 of
+            Right (v3, r3) ->
+              case p4 r3 of
+                Right (v4, r4) -> Right (comb v1 v2 v3 v4, r4)
+                Left e4 -> Left e4
             Left e3 -> Left e3
         Left e2 -> Left e2
     Left e1 -> Left e1
@@ -128,8 +144,8 @@ and8' comb p1 p2 p3 p4 p5 p6 p7 p8 = \input ->
         Left e2 -> Left e2
     Left e1 -> Left e1
 
-or6' :: Parser a -> Parser a -> Parser a -> Parser a -> Parser a -> Parser a -> Parser a
-or6' p1 p2 p3 p4 p5 p6 = \input ->
+or7' :: Parser a -> Parser a -> Parser a -> Parser a -> Parser a -> Parser a -> Parser a -> Parser a
+or7' p1 p2 p3 p4 p5 p6 p7 = \input ->
   case p1 input of
     Right r1 -> Right r1
     Left e1 -> case p2 input of
@@ -142,7 +158,9 @@ or6' p1 p2 p3 p4 p5 p6 = \input ->
             Right r5 -> Right r5
             Left e5 -> case p6 input of
               Right r6 -> Right r6
-              Left e6 -> Left (e1 ++ "; " ++ e2 ++ "; " ++ e3 ++ "; " ++ e4 ++ "; " ++ e5 ++ "; " ++ e6)
+              Left e6 -> case p7 input of
+                Right r7 -> Right r7
+                Left e7 -> Left (e1 ++ "; " ++ e2 ++ "; " ++ e3 ++ "; " ++ e4 ++ "; " ++ e5 ++ "; " ++ e6 ++ "; " ++ e7)
 
 skipSpaces :: String -> String
 skipSpaces = dropWhile (== ' ')
@@ -330,9 +348,31 @@ parseView =
     (parseChar '(')
     (parseChar ')')
 
+parseProcess :: Parser Query
+parseProcess = or7' parseHarvest parseFerment parseAge parseBottle parseSell parseView parseWineFactory
+
+parseProcessList :: Parser [Query]
+parseProcessList input = case parseProcess input of
+  Right (firstQuery, rest) ->
+    case parseChar ',' rest of
+      Right (_, afterComma) -> case parseProcessList afterComma of
+        Right (otherQueries, finalRest) -> Right (firstQuery : otherQueries, finalRest)
+        Left err -> Left err
+      Left _ -> Right ([firstQuery], rest)
+  Left err -> Left err
+
+parseWineFactory :: Parser Query
+parseWineFactory =
+  and4'
+    (\_ _ queryList _ -> WineFactory queryList)
+    (parseLiteral "wine_factory")
+    (parseChar '(')
+    parseProcessList
+    (parseChar ')')
+
 -- | Parses user's input.
 parseQuery :: String -> Either String Query
-parseQuery input = case or6' parseHarvest parseFerment parseBottle parseAge parseSell parseView input of
+parseQuery input = case or7' parseHarvest parseFerment parseBottle parseAge parseSell parseView parseWineFactory input of
   Right (query, _) -> Right query
   _ -> Left "Failed to parse query: Unknown command"
 
@@ -383,6 +423,19 @@ stateTransition st query = case query of
     let grapeList = unlines $ map (\(gType, qty) -> show qty ++ " kg of " ++ show gType) (grapeInventory st)
         wineList = unlines $ map (\(wType, qty) -> show qty ++ " bottles of " ++ show wType) (wineInventory st)
      in Right (Just ("Grape Inventory:\n" ++ grapeList ++ "\nWine Inventory:\n" ++ wineList), st)
+  WineFactory queryList ->
+    -- Process each query in the list and accumulate the result
+    foldl processQuery (Right (Just "", st)) queryList
+    where
+      -- Helper function to process each query and transition the state
+      processQuery :: Either String (Maybe String, State) -> Query -> Either String (Maybe String, State)
+      processQuery (Left err) _ = Left err -- Stop if an error occurred
+      processQuery (Right (_, currentState)) nextQuery =
+        case stateTransition currentState nextQuery of
+          Left err -> Left err
+          Right (Just result, newState) ->
+            Right (Just (result ++ "\nProcessed: " ++ show nextQuery), newState)
+          Right (Nothing, newState) -> Right (Nothing, newState) -- No output, just transition state
 
 -- Helper function to get quantity from Quantity type
 getQuantity :: Quantity -> Int
