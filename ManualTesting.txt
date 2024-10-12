@@ -1,172 +1,31 @@
--- Testing parseGrapeType
-> parseGrapeType "CabernetSauvignon"
-Just CabernetSauvignon
+Run the program with - 'stack run fp2024-two'
 
-> parseGrapeType "Merlot"
-Just Merlot
+>>> harvest (CabernetSauvignon, 100 kg)
+Harvested 100 kg of CabernetSauvignon
+>>> view()
+Grape Inventory:
+100 kg of CabernetSauvignon
 
-> parseGrapeType "PinotNoir"
-Just PinotNoir
+Wine Inventory:
 
-> parseGrapeType "Chardonnay"
-Just Chardonnay
+>>> bottle (RedWine, 50 bottles)
+Bottled 50 of RedWine
+>>> age (RedWine, 6 months, Oak)
+Aging RedWine for Months 6 in Oak
+>>> sell (RedWine, 20 bottles, 25.99)
+Sold 20 of RedWine for $25.99
+>>> sell (RedWine, 100 bottles, 25.99)
+ERROR:Insufficient inventory to sell the requested quantity.
+>>> ferment (Merlot, 30 days)
+ERROR:Not enough Merlot to ferment.
+>>> harvest(Merlot, 100 kg)
+Harvested 100 kg of Merlot
+>>> ferment (Merlot, 30 days)
+Started fermentation of Merlot for Days 30
+>>> view()
+Grape Inventory:
+100 kg of CabernetSauvignon
+100 kg of Merlot
 
-> parseGrapeType "UnknownGrape"
-Nothing
-
--- Testing parseWineType
-> parseWineType "RedWine"
-Just RedWine
-
-> parseWineType "WhiteWine"
-Just WhiteWine
-
-> parseWineType "RoseWine"
-Just RoseWine
-
-> parseWineType "OtherWine"
-Nothing
-
--- Testing parseUnit
-> parseUnit "kg"
-Just Kg
-
-> parseUnit "L"
-Just L
-
-> parseUnit "bottles"
-Just Bottles
-
-> parseUnit "gallons"
-Nothing
-
--- Testing parseBarrelType
-> parseBarrelType "Oak"
-Just Oak
-
-> parseBarrelType "Steel"
-Just Steel
-
-> parseBarrelType "Clay"
-Just Clay
-
-> parseBarrelType "Plastic"
-Nothing
-
--- Testing parseDuration
-> parseDuration "30 days"
-Just (Days 30)
-
-> parseDuration "5 months"
-Just (Months 5)
-
-> parseDuration "15 years"
-Nothing
-
-> parseDuration "weeks 4"
-Nothing
-
-> parseDuration "7 days extra"
-Nothing
-
--- Testing parseQuery
-> parseQuery "harvest CabernetSauvignon 100 kg"
-Right (Harvest CabernetSauvignon 100 Kg)
-
-> parseQuery "ferment Merlot 10 days"
-Right (Ferment Merlot (Days 10))
-
-> parseQuery "ferment PinotNoir 2 months"
-Right (Ferment PinotNoir (Months 2))
-
-> parseQuery "age RedWine 6 months Oak"
-Right (Age RedWine (Months 6) Oak)
-
-> parseQuery "bottle RedWine 50 bottles"
-Right (Bottle RedWine 50 Bottles)
-
-> parseQuery "sell WhiteWine 20 15.5"
-Right (Sell WhiteWine 20 15.5)
-
-> parseQuery "view"
-Right View
-
-> parseQuery "harvest Chardonnay fifty kg"
-Left "Failed to parse harvest"
-
-> parseQuery "ferment Merlot 10 weeks"
-Left "Failed to parse ferment"
-
-> parseQuery "unknown command"
-Left "Unknown command"
-
--- Initial State
-> let initialState = emptyState
-> initialState
-State {processes = [], grapeInventory = [], wineInventory = [], barrels = []}
-
--- Harvest Command: Harvest 100 kg of Merlot
-> let (Right query1) = parseQuery "harvest Merlot 100 kg"
-> let result1 = stateTransition initialState query1
-> result1
-Right (Just "Harvested 100 kg of Merlot",State {processes = [Harvest Merlot 100 Kg], grapeInventory = [(Merlot,100)], wineInventory = [], barrels = []})
-
--- Harvest Command: Harvest 50 kg of Chardonnay
-> let (Right (_, state1)) = result1
-> let (Right query2) = parseQuery "harvest Chardonnay 50 kg"
-> let result2 = stateTransition state1 query2
-> result2
-Right (Just "Harvested 50 kg of Chardonnay",State {processes = [Harvest Chardonnay 50 Kg,Harvest Merlot 100 Kg], grapeInventory = [(Merlot,100),(Chardonnay,50)], wineInventory = [], barrels = []})
-
--- Bottling Command: Bottle 20 bottles of RedWine
-> let (Right (_, state2)) = result2
-> let (Right query3) = parseQuery "bottle RedWine 20 bottles"
-> let result3 = stateTransition state2 query3
-> result3
-Right (Just "Bottled 20 bottles of RedWine",State {processes = [Bottle RedWine 20 Bottles,Harvest Chardonnay 50 Kg,Harvest Merlot 100 Kg], grapeInventory = [(Merlot,100),(Chardonnay,50)], wineInventory = [(RedWine,20)], barrels = []})
-
--- Age Command: Age WhiteWine for 3 months in Oak barrel
-> let (Right (_, state3)) = result3
-> let (Right query4) = parseQuery "age WhiteWine 3 months Oak"
-> let result4 = stateTransition state3 query4
-> result4
-Right (Just "Aged WhiteWine for Months 3 in Oak barrel",State {processes = [Age WhiteWine (Months 3) Oak,Bottle RedWine 20 Bottles,Harvest Chardonnay 50 Kg,Harvest Merlot 100 Kg], grapeInventory = [(Merlot,100),(Chardonnay,50)], wineInventory = [(RedWine,20)], barrels = [(Oak,1)]})
-
--- Ferment Command: Ferment Merlot for 15 days
-> let (Right (_, state4)) = result4
-> let (Right query5) = parseQuery "ferment Merlot 15 days"
-> let result5 = stateTransition state4 query5
-> result5
-Right (Just "Fermented Merlot for Days 15",State {processes = [Ferment Merlot (Days 15),Age WhiteWine (Months 3) Oak,Bottle RedWine 20 Bottles,Harvest Chardonnay 50 Kg,Harvest Merlot 100 Kg], grapeInventory = [(Merlot,100),(Chardonnay,50)], wineInventory = [(RedWine,20)], barrels = [(Oak,1)]})
-
--- Sell Command: Sell 10 bottles of RedWine for 12.5 each
-> let (Right (_, state5)) = result5
-> let (Right query6) = parseQuery "sell RedWine 10 12.5"
-> let result6 = stateTransition state5 query6
-> result6
-Right (Just "Sold 10 bottles of RedWine for 12.5 each",State {processes = [Sell RedWine 10 12.5,Ferment Merlot (Days 15),Age WhiteWine (Months 3) Oak,Bottle RedWine 20 Bottles,Harvest Chardonnay 50 Kg,Harvest Merlot 100 Kg], grapeInventory = [(Merlot,100),(Chardonnay,50)], wineInventory = [(RedWine,10)], barrels = [(Oak,1)]})
-
--- Sell Command: Sell 15 bottles of RedWine (more than available)
-> let (Right (_, state6)) = result6
-> let (Right query7) = parseQuery "sell RedWine 15 12.5"
-> let result7 = stateTransition state6 query7
-> result7
-Left "Not enough wine to sell"
-
--- Harvest Command with Invalid Unit: Harvest 100 liters of Merlot (invalid unit)
-> let (Right query8) = parseQuery "harvest Merlot 100 L"
-> let result8 = stateTransition state6 query8
-> result8
-Left "Harvesting must be in kg"
-
--- Bottle Command with Invalid Unit: Bottle 30 liters of RoseWine (invalid unit)
-> let (Right query9) = parseQuery "bottle RoseWine 30 L"
-> let result9 = stateTransition state6 query9
-> result9
-Left "Bottling must be in bottles"
-
--- Viewing Current State
-> let (Right query10) = parseQuery "view"
-> let result10 = stateTransition state6 query10
-> result10
-Right (Just "State {processes = [Sell RedWine 10 12.5,Ferment Merlot (Days 15),Age WhiteWine (Months 3) Oak,Bottle RedWine 20 Bottles,Harvest Chardonnay 50 Kg,Harvest Merlot 100 Kg], grapeInventory = [(Merlot,100),(Chardonnay,50)], wineInventory = [(RedWine,10)], barrels = [(Oak,1)]}",State {processes = [Sell RedWine 10 12.5,Ferment Merlot (Days 15),Age WhiteWine (Months 3) Oak,Bottle RedWine 20 Bottles,Harvest Chardonnay 50 Kg,Harvest Merlot 100 Kg], grapeInventory = [(Merlot,100),(Chardonnay,50)], wineInventory = [(RedWine,10)], barrels = [(Oak,1)]})
+Wine Inventory:
+30 bottles of RedWine

@@ -334,7 +334,7 @@ parseView =
 parseQuery :: String -> Either String Query
 parseQuery input = case or6' parseHarvest parseFerment parseBottle parseAge parseSell parseView input of
   Right (query, _) -> Right query
-  Left err -> Left $ "Failed to parse query: " ++ err
+  _ -> Left "Failed to parse query: Unknown command"
 
 -- | Initial program state.
 emptyState :: State
@@ -348,24 +348,37 @@ emptyState =
 stateTransition :: State -> Query -> Either String (Maybe String, State)
 stateTransition st query = case query of
   Harvest grapeType quantity ->
-    let updatedInventory = addToInventory grapeType (getQuantity quantity) (grapeInventory st)
-        newState = st {grapeInventory = updatedInventory}
-     in Right (Just ("Harvested " ++ show (getQuantity quantity) ++ " kg of " ++ show grapeType), newState)
+    if getQuantity quantity <= 0
+      then Left "Harvest quantity must be greater than zero."
+      else
+        let updatedInventory = addToInventory grapeType (getQuantity quantity) (grapeInventory st)
+            newState = st {grapeInventory = updatedInventory}
+         in Right (Just ("Harvested " ++ show (getQuantity quantity) ++ " kg of " ++ show grapeType), newState)
   Ferment grapeType duration ->
-    Right (Just ("Started fermentation of " ++ show grapeType ++ " for " ++ show duration), st)
+    let currentGrapes = lookupInventory grapeType (grapeInventory st)
+     in if currentGrapes > 0
+          then Right (Just ("Started fermentation of " ++ show grapeType ++ " for " ++ show duration), st)
+          else Left ("Not enough " ++ show grapeType ++ " to ferment.")
   Age wineType duration barrelType ->
-    Right (Just ("Aging " ++ show wineType ++ " for " ++ show duration ++ " in " ++ show barrelType), st)
+    let currentWineQuantity = lookupInventory wineType (wineInventory st)
+     in if currentWineQuantity > 0
+          then Right (Just ("Aging " ++ show wineType ++ " for " ++ show duration ++ " in " ++ show barrelType), st)
+          else Left ("Not enough " ++ show wineType ++ " to age.")
   Bottle wineType quantity ->
-    let updatedInventory = addToInventory wineType (getBottleQuantity quantity) (wineInventory st)
-        newState = st {wineInventory = updatedInventory}
-     in Right (Just ("Bottled " ++ show (getBottleQuantity quantity) ++ " of " ++ show wineType), newState)
+    if getBottleQuantity quantity <= 0
+      then Left "Bottling quantity must be greater than zero."
+      else
+        let updatedInventory = addToInventory wineType (getBottleQuantity quantity) (wineInventory st)
+            newState = st {wineInventory = updatedInventory}
+         in Right (Just ("Bottled " ++ show (getBottleQuantity quantity) ++ " of " ++ show wineType), newState)
   Sell wineType quantity price ->
-    if any (\(wType, qty) -> wType == wineType && qty >= getBottleQuantity quantity) (wineInventory st)
-      then
-        let newWineInventory = removeFromInventory wineType (getBottleQuantity quantity) (wineInventory st)
-            newState = st {wineInventory = newWineInventory}
-         in Right (Just ("Sold " ++ show (getBottleQuantity quantity) ++ " of " ++ show wineType ++ " for $" ++ show price), newState)
-      else Left "Insufficient inventory to sell the requested quantity"
+    let currentWineQuantity = lookupInventory wineType (wineInventory st)
+     in if currentWineQuantity >= getBottleQuantity quantity
+          then
+            let newWineInventory = removeFromInventory wineType (getBottleQuantity quantity) (wineInventory st)
+                newState = st {wineInventory = newWineInventory}
+             in Right (Just ("Sold " ++ show (getBottleQuantity quantity) ++ " of " ++ show wineType ++ " for $" ++ show price), newState)
+          else Left "Insufficient inventory to sell the requested quantity."
   View ->
     let grapeList = unlines $ map (\(gType, qty) -> show qty ++ " kg of " ++ show gType) (grapeInventory st)
         wineList = unlines $ map (\(wType, qty) -> show qty ++ " bottles of " ++ show wType) (wineInventory st)
@@ -395,3 +408,10 @@ removeFromInventory _ _ [] = []
 removeFromInventory item quantity ((i, q) : xs)
   | i == item = if q > quantity then (i, q - quantity) : xs else xs
   | otherwise = (i, q) : removeFromInventory item quantity xs
+
+-- Helper function to lookup inventory quantity
+lookupInventory :: (Eq a) => a -> [(a, Int)] -> Int
+lookupInventory _ [] = 0
+lookupInventory item ((i, q) : xs)
+  | i == item = q
+  | otherwise = lookupInventory item xs
