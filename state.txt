@@ -1,0 +1,5 @@
+BEGIN
+harvest(Merlot, 30 kg);
+harvest(Merlot, 40 kg);
+harvest(Merlot, 50 kg);
+END
