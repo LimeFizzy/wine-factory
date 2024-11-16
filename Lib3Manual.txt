@@ -1,0 +1,46 @@
+--- commands one-by-one
+Welcome! Press [TAB] for auto completion, type ':paste' for multiline input
+>>> harvest(Merlot, 50 kg)
+Harvested 50 kg of Merlot
+>>> bottle(WhiteWine, 10 bottles)
+Bottled 10 of WhiteWine
+>>> view()
+Grape Inventory:
+Merlot: 50 kg
+Wine Inventory:
+WhiteWine: 10 bottles
+
+--- batch of commands and save them
+Welcome! Press [TAB] for auto completion, type ':paste' for multiline input
+>>> :paste
+-- Entering multi-line mode. Press <Ctrl-D> to finish.
+| BEGIN
+| harvest(Merlot, 20 kg);
+| bottle(WhiteWine, 10 bottles);
+| view();
+| END
+| 
+Harvested 20 kg of Merlot
+Bottled 10 of WhiteWine
+Grape Inventory:
+Merlot: 20 kg
+Wine Inventory:
+WhiteWine: 10 bottles
+
+>>> save
+State saved successfully
+
+--- loading state from file
+Welcome! Press [TAB] for auto completion, type ':paste' for multiline input
+>>> view()
+Grape Inventory:
+Wine Inventory:
+
+>>> load
+Harvested 20 kg of Merlot
+Bottled 10 of WhiteWine
+>>> view()
+Grape Inventory:
+Merlot: 20 kg
+Wine Inventory:
+WhiteWine: 10 bottles

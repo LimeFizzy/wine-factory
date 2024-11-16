@@ -8,6 +8,7 @@ module Lib3
     parseStatements,
     marshallState,
     renderStatements,
+    renderQuery,
   )
 where
 
@@ -89,20 +90,11 @@ marshallState state = Batch queries
     -- Generate Harvest queries from grape inventory
     harvestQueries = map (\(gt, qty) -> Harvest gt (Kg qty)) (Lib2.grapeInventory state)
 
-    -- Generate Ferment queries from grape inventory (assuming default durations for fermentation)
-    fermentQueries = map (\(gt, _) -> Ferment gt (Days 30)) (Lib2.grapeInventory state) -- Example: Ferment all grapes for 30 days
-
-    -- Generate Age queries for each wine type, assuming 12 months of aging in Oak barrels
-    ageQueries = map (\(wt, _) -> Age wt (Months 12) Oak) (Lib2.wineInventory state)
-
     -- Generate Bottle queries for each wine type, assuming the wine needs to be bottled
     bottleQueries = map (\(wt, qty) -> Bottle wt (Bottles qty)) (Lib2.wineInventory state)
 
-    -- Generate Sell queries for each wine type, assuming a fixed price (could be dynamic)
-    sellQueries = map (\(wt, qty) -> Sell wt (Bottles qty) 15.99) (Lib2.wineInventory state) -- Example price: 15.99 per bottle
-
     -- Combine all queries into one batch
-    queries = harvestQueries ++ fermentQueries ++ ageQueries ++ bottleQueries ++ sellQueries
+    queries = harvestQueries ++ bottleQueries
 
 renderQuery :: Query -> String
 renderQuery (Harvest grapeType quantity) =

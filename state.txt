@@ -1,5 +1,4 @@
 BEGIN
-harvest(Merlot, 30 kg);
-harvest(Merlot, 40 kg);
-harvest(Merlot, 50 kg);
+harvest(Merlot, 20 kg);
+bottle(WhiteWine, 10 bottles);
 END
