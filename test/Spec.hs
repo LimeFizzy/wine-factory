@@ -1,5 +1,9 @@
 {-# LANGUAGE ImportQualifiedPost #-}
 {-# OPTIONS_GHC -Wno-incomplete-patterns #-}
+import Test.Tasty.QuickCheck as QC
+
+import Data.List
+import Data.Ord
 
 import Data.Char (isAlpha)
 import Lib2 qualified
