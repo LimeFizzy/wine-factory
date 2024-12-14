@@ -144,4 +144,4 @@ main = do
       let (result, finalState) = runState (runInMemory program) []
       print result
       print finalState
-    _ -> putStrLn "Usage: stack exec wine-factory-client [single|batch|memory]"
+    _ -> putStrLn "Usage: stack run fp2024-four-client [single|batch|memory]"
