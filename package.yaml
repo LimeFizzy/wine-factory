@@ -44,6 +44,7 @@ library:
   - QuickCheck
   - transformers
   - strict
+  - mtl
 
 executables:
   fp2024-one:
@@ -93,6 +94,7 @@ executables:
     - wreq
     - bytestring
     - string-conversions
+    - mtl
   fp2024-four-server:
     main:                Main.hs
     source-dirs:         app4-server
@@ -105,6 +107,7 @@ executables:
     - repline
     - scotty
     - string-conversions
+    - mtl
 
 tests:
   fp2024-test:

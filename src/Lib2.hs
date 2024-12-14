@@ -40,8 +40,8 @@ emptyState =
 parseQuery :: String -> Either String Query
 parseQuery s =
   case parse parseTaskList s of
-    Left e -> Left e
-    Right (qs, r) ->
+    (Left e, _) -> Left e
+    (Right qs, r) ->
       if null r
         then case qs of
           [q] -> Right q
